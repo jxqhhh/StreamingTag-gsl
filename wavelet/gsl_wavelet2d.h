@@ -59,6 +59,13 @@ int gsl_wavelet2d_nstransform (const gsl_wavelet * w,
                                gsl_wavelet_direction dir,
                                gsl_wavelet_workspace * work);
 
+int
+gsl_wavelet2d_nstransform_with_specified_level (const gsl_wavelet * w,
+                           double *data, size_t tda, size_t size1,
+                           size_t size2, gsl_wavelet_direction dir,
+                           int level,
+                           gsl_wavelet_workspace * work);
+
 int gsl_wavelet2d_nstransform_forward (const gsl_wavelet * w, 
                                        double *data, 
                                        size_t tda, size_t size1, size_t size2,

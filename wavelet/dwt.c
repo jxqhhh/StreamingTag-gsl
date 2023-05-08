@@ -22,6 +22,7 @@
  */
 
 #include <config.h>
+#include <stdio.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_wavelet.h>
 #include <gsl/gsl_wavelet2d.h>
@@ -29,6 +30,7 @@
 #define ELEMENT(a,stride,i) ((a)[(stride)*(i)])
 
 static int binary_logn (const size_t n);
+static int check_power (const size_t n, const size_t level);
 static void dwt_step (const gsl_wavelet * w, double *a, size_t stride, size_t n, gsl_wavelet_direction dir, gsl_wavelet_workspace * work);
 
 static int
@@ -52,6 +54,18 @@ binary_logn (const size_t n)
     }
 
   return logn;
+}
+
+static int check_power (const size_t n, const size_t level)
+{
+  size_t n0 = n;
+  for (size_t i = 0; i < level; i ++) {
+    if (n0%2!=0) {
+      return -1;                 /* n is not divisible by 2**level */
+    }
+    n0 /= 2;
+  }
+  return 1;
 }
 
 static void
@@ -297,6 +311,74 @@ gsl_wavelet2d_nstransform (const gsl_wavelet * w,
   return GSL_SUCCESS;
 }
 
+int
+gsl_wavelet2d_nstransform_with_specified_level (const gsl_wavelet * w, 
+                           double *data, size_t tda, size_t size1,
+                           size_t size2, gsl_wavelet_direction dir,
+                           int level,
+                           gsl_wavelet_workspace * work)
+{
+  size_t i, j;
+
+  if (size1 != size2)
+    {
+      GSL_ERROR ("2d dwt works only with square matrix", GSL_EINVAL);
+    }
+
+  if (work->n < size1)
+    {
+      GSL_ERROR ("not enough workspace provided", GSL_EINVAL);
+    }
+
+  if (binary_logn (size1) == -1)
+    {
+      GSL_ERROR ("n is not a power of 2", GSL_EINVAL);
+    }
+
+  if (check_power (size1, level) == -1)
+    {
+      GSL_ERROR ("n is not divisible by 2**level", GSL_EINVAL);
+    }
+
+  if (size1 < 2)
+    {
+      return GSL_SUCCESS;
+    }
+
+  if (dir == gsl_wavelet_forward)
+    {
+      int curLevel = 0;
+      for (i = size1; i >= 2 && curLevel<level; i >>= 1, curLevel++)
+        {
+          for (j = 0; j < i; j++)       /* for every row j */
+            {
+              dwt_step (w, &ELEMENT(data, tda, j), 1, i, dir, work);
+            }
+          for (j = 0; j < i; j++)       /* for every column j */
+            {
+              dwt_step (w, &ELEMENT(data, 1, j), tda, i, dir, work);
+            }
+        }
+    }
+  else
+    {
+
+      for (int curLevel = 0; curLevel < level; curLevel ++)
+        {
+          int i = size1 >> (level-1-curLevel);
+          for (j = 0; j < i; j++)       /* for every column j */
+            {
+              dwt_step (w, &ELEMENT(data, 1, j), tda, i, dir, work);
+            }
+          for (j = 0; j < i; j++)       /* for every row j */
+            {
+              dwt_step (w, &ELEMENT(data, tda, j), 1, i, dir, work);
+            }
+        }
+    }
+
+  return GSL_SUCCESS;
+}
 
 int
 gsl_wavelet2d_transform_forward (const gsl_wavelet * w, 
@@ -392,5 +474,4 @@ gsl_wavelet2d_nstransform_matrix_inverse (const gsl_wavelet * w,
                                     a->tda, a->size1, a->size2, 
                                     gsl_wavelet_backward, work);
 }
-
 
